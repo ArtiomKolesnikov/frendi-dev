@@ -2,7 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Comments\CreateCommentAction;
+use App\Actions\Comments\DeleteCommentAction;
+use App\Actions\Comments\UpdateCommentAction;
+use App\DTO\CommentData;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\CommentIndexRequest;
+use App\Http\Requests\Api\CommentStoreRequest;
+use App\Http\Requests\Api\CommentUpdateRequest;
 use App\Http\Resources\CommentResource;
 use App\Models\Comment;
 use App\Models\Post;
@@ -12,9 +19,26 @@ use Illuminate\Http\Request;
 
 class CommentController extends Controller
 {
-    public function index(Request $request, Post $post): JsonResponse
+    /** @var CreateCommentAction */
+    private $createComment;
+    /** @var UpdateCommentAction */
+    private $updateComment;
+    /** @var DeleteCommentAction */
+    private $deleteComment;
+
+    public function __construct(
+        CreateCommentAction $createComment,
+        UpdateCommentAction $updateComment,
+        DeleteCommentAction $deleteComment
+    ) {
+        $this->createComment = $createComment;
+        $this->updateComment = $updateComment;
+        $this->deleteComment = $deleteComment;
+    }
+
+    public function index(CommentIndexRequest $request, Post $post): JsonResponse
     {
-        $perPage = max(1, min(50, (int) $request->input('per_page', 20)));
+        $perPage = (int) ($request->validated()['per_page'] ?? 20);
         $authorToken = ClientContext::token($request);
 
         $comments = $post->comments()
@@ -26,38 +50,23 @@ class CommentController extends Controller
         return CommentResource::collection($comments)->response();
     }
 
-    public function store(Request $request, Post $post): JsonResponse
+    public function store(CommentStoreRequest $request, Post $post): JsonResponse
     {
-        $validated = $request->validate([
-            'body' => ['required', 'string', 'max:1000'],
-            'author_display_name' => ['nullable', 'string', 'max:120'],
-        ]);
-
         $authorToken = ClientContext::token($request);
-
-        $comment = $post->comments()->create([
-            'body' => $validated['body'],
-            'author_display_name' => $validated['author_display_name'] ?? null,
-            'author_token' => $authorToken,
-            'status' => Comment::STATUS_APPROVED,
-        ]);
+        $comment = ($this->createComment)($post, CommentData::fromRequest($request), $authorToken);
 
         return CommentResource::make($comment)->response()->setStatusCode(201);
     }
 
-    public function update(Request $request, Post $post, Comment $comment): JsonResponse
+    public function update(CommentUpdateRequest $request, Post $post, Comment $comment): JsonResponse
     {
         // Admin only
         if (!$request->session()->has('admin_id')) {
             abort(403);
         }
-        if ($comment->post_id !== $post->id) {
-            abort(404);
-        }
-        $validated = $request->validate([
-            'body' => ['required', 'string', 'max:1000'],
-        ]);
-        $comment->update(['body' => $validated['body']]);
+
+        $comment = ($this->updateComment)($post, $comment, $request->string('body')->toString());
+
         return CommentResource::make($comment)->response();
     }
 
@@ -67,10 +76,9 @@ class CommentController extends Controller
         if (!$request->session()->has('admin_id')) {
             abort(403);
         }
-        if ($comment->post_id !== $post->id) {
-            abort(404);
-        }
-        $comment->delete();
+
+        ($this->deleteComment)($post, $comment);
+
         return response()->json(['status' => 'ok']);
     }
 }

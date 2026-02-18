@@ -2,47 +2,44 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Actions\Admin\ListPostsForModerationAction;
+use App\Actions\Admin\UpdatePostStatusAction;
+use App\Http\Requests\Api\Admin\PostStatusUpdateRequest;
 use App\Http\Resources\PostResource;
 use App\Models\Post;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class PostModerationController extends AdminController
 {
+    /** @var ListPostsForModerationAction */
+    private $listPosts;
+    /** @var UpdatePostStatusAction */
+    private $updatePostStatus;
+
+    public function __construct(
+        ListPostsForModerationAction $listPosts,
+        UpdatePostStatusAction $updatePostStatus
+    ) {
+        $this->listPosts = $listPosts;
+        $this->updatePostStatus = $updatePostStatus;
+    }
+
     public function index(Request $request): JsonResponse
     {
         $this->ensureAdmin($request);
 
         $status = $request->input('status', Post::STATUS_PENDING);
-
-        $posts = Post::query()
-            ->when($status, fn ($q) => $q->where('status', $status))
-            ->with(['media', 'comments'])
-            ->latest()
-            ->paginate(20)
-            ->withQueryString();
+        $posts = ($this->listPosts)($status);
 
         return PostResource::collection($posts)->response();
     }
 
-    public function updateStatus(Request $request, Post $post): JsonResponse
+    public function updateStatus(PostStatusUpdateRequest $request, Post $post): JsonResponse
     {
         $this->ensureAdmin($request);
 
-        $validated = $request->validate([
-            'status' => ['required', Rule::in([
-                Post::STATUS_PENDING,
-                Post::STATUS_APPROVED,
-                Post::STATUS_REJECTED,
-            ])],
-        ]);
-
-        $post->status = $validated['status'];
-        $post->published_at = $post->status === Post::STATUS_APPROVED ? now() : null;
-        $post->save();
-
-        $post->load(['media', 'comments']);
+        $post = ($this->updatePostStatus)($post, $request->string('status')->toString());
 
         return PostResource::make($post)->response();
     }

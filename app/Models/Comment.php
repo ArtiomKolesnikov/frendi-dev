@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Builder;
 
 class Comment extends Model
 {
@@ -22,7 +23,7 @@ class Comment extends Model
         'author_token',
     ];
 
-    public function scopeVisibleFor($query, ?string $authorToken)
+    public function scopeVisibleFor(Builder $query, ?string $authorToken): Builder
     {
         return $query->where(function ($inner) use ($authorToken) {
             $inner->where('status', self::STATUS_APPROVED);

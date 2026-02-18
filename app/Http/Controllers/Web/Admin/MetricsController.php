@@ -27,14 +27,28 @@ class MetricsController extends Controller
 
         // Фото животных
         $totalPetPosts = Post::query()->where('type', Post::TYPE_PET)->count();
-        $petsLikesCount = PostReaction::query()->whereHas('post', fn($q) => $q->where('type', Post::TYPE_PET))->where('type','like')->count();
-        $petsCommentsCount = Comment::query()->whereHas('post', fn($q) => $q->where('type', Post::TYPE_PET))->count();
+        $petsLikesCount = PostReaction::query()
+            ->whereHas('post', function ($q) {
+                return $q->where('type', Post::TYPE_PET);
+            })
+            ->where('type', 'like')
+            ->count();
+        $petsCommentsCount = Comment::query()
+            ->whereHas('post', function ($q) {
+                return $q->where('type', Post::TYPE_PET);
+            })
+            ->count();
         $percentPetsLikes = $totalPetPosts ? round($petsLikesCount / $totalPetPosts * 100, 1) : 0.0;
         $percentPetsComments = $totalPetPosts ? round($petsCommentsCount / $totalPetPosts * 100, 1) : 0.0;
 
         // Моя собака
         $totalMyDogPosts = Post::query()->where('type', Post::TYPE_MY_DOG)->count();
-        $mydogSharesCount = ShareEvent::query()->whereHas('post', fn($q) => $q->where('type', Post::TYPE_MY_DOG))->distinct('author_token')->count('author_token');
+        $mydogSharesCount = ShareEvent::query()
+            ->whereHas('post', function ($q) {
+                return $q->where('type', Post::TYPE_MY_DOG);
+            })
+            ->distinct('author_token')
+            ->count('author_token');
         $percentMydogShares = $totalMyDogPosts ? round($mydogSharesCount / $totalMyDogPosts * 100, 1) : 0.0;
 
         // Конкурсы

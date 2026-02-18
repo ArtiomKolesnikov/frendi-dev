@@ -33,7 +33,9 @@ class FeedController extends Controller
             $winnerPostIds = collect();
 
             $posts = Post::query()
-                ->when(!$isAdmin, fn($q) => $q->visibleFor($authorToken))
+                ->when(!$isAdmin, function ($q) use ($authorToken) {
+                    return $q->visibleFor($authorToken);
+                })
                 ->where('type', Post::TYPE_ROUTE)
                 ->withUserReaction($authorToken, $deviceFingerprint)
                 ->with('media')
@@ -76,7 +78,9 @@ class FeedController extends Controller
 
         // Regular feed (exclude winners)
         $posts = Post::query()
-            ->when(!$isAdmin, fn($q) => $q->visibleFor($authorToken))
+            ->when(!$isAdmin, function ($q) use ($authorToken) {
+                return $q->visibleFor($authorToken);
+            })
             ->whereNotIn('id', $winnerPostIds)
             ->withUserReaction($authorToken, $deviceFingerprint)
             ->with('media')

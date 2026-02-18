@@ -23,15 +23,9 @@ class PostResource extends JsonResource
             'author_contact' => $this->author_contact,
             'created_at' => $this->created_at,
             'published_at' => $this->published_at,
-            'likes_count' => isset($this->likes_count)
-                ? (int) $this->likes_count
-                : (int) $this->reactions()->where('type', 'like')->count(),
-            'dislikes_count' => isset($this->dislikes_count)
-                ? (int) $this->dislikes_count
-                : (int) $this->reactions()->where('type', 'dislike')->count(),
-            'comments_count' => isset($this->comments_count)
-                ? (int) $this->comments_count
-                : (int) $this->comments()->count(),
+            'likes_count' => (int) ($this->likes_count ?? 0),
+            'dislikes_count' => (int) ($this->dislikes_count ?? 0),
+            'comments_count' => (int) ($this->comments_count ?? 0),
             'share_url' => url('/share/'.$this->share_slug),
             'user_reaction' => $this->user_reaction ?? null,
             'is_owner' => $this->author_token

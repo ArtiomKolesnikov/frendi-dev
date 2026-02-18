@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Models\PostReaction;
+use App\Models\Comment;
 
 class Post extends Model
 {
@@ -89,7 +90,7 @@ class Post extends Model
         });
     }
 
-    public function scopeWithUserReaction(Builder $query, ?string $authorToken, ?string $deviceFingerprint = null): Builder
+    public function scopeWithUserReactionFor(Builder $query, ?string $authorToken, ?string $deviceFingerprint = null): Builder
     {
         $adminId = session()->get('admin_id');
         if ($adminId) {
@@ -116,7 +117,6 @@ class Post extends Model
             ]);
         }
 
-        // For guests, use device fingerprint if available
         if ($deviceFingerprint) {
             return $query->addSelect([
                 'user_reaction' => PostReaction::select('type')
@@ -126,7 +126,39 @@ class Post extends Model
             ]);
         }
 
+        if ($authorToken) {
+            return $query->addSelect([
+                'user_reaction' => PostReaction::select('type')
+                    ->whereColumn('post_id', 'posts.id')
+                    ->where('author_token', $authorToken)
+                    ->limit(1),
+            ]);
+        }
+
         return $query;
+    }
+
+    public function scopeWithUserReaction(Builder $query, ?string $authorToken, ?string $deviceFingerprint = null): Builder
+    {
+        return $query->withUserReactionFor($authorToken, $deviceFingerprint);
+    }
+
+    public function scopeWithCountsFor(Builder $query, ?string $authorToken): Builder
+    {
+        return $query->withCount([
+            'reactions as likes_count' => function ($q) {
+                return $q->where('type', 'like');
+            },
+            'reactions as dislikes_count' => function ($q) {
+                return $q->where('type', 'dislike');
+            },
+            'comments as comments_count' => function ($q) use ($authorToken) {
+                $q->where(function ($inner) use ($authorToken) {
+                    $inner->where('status', Comment::STATUS_APPROVED)
+                        ->orWhere('author_token', $authorToken);
+                });
+            },
+        ]);
     }
 
     public function media(): HasMany

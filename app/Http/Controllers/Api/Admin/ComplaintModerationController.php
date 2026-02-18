@@ -2,45 +2,44 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Actions\Admin\ListComplaintsForModerationAction;
+use App\Actions\Admin\UpdateComplaintStatusAction;
+use App\Http\Requests\Api\Admin\ComplaintStatusUpdateRequest;
 use App\Http\Resources\ComplaintResource;
 use App\Models\Complaint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class ComplaintModerationController extends AdminController
 {
+    /** @var ListComplaintsForModerationAction */
+    private $listComplaints;
+    /** @var UpdateComplaintStatusAction */
+    private $updateComplaintStatus;
+
+    public function __construct(
+        ListComplaintsForModerationAction $listComplaints,
+        UpdateComplaintStatusAction $updateComplaintStatus
+    ) {
+        $this->listComplaints = $listComplaints;
+        $this->updateComplaintStatus = $updateComplaintStatus;
+    }
+
     public function index(Request $request): JsonResponse
     {
         $this->ensureAdmin($request);
 
         $status = $request->input('status', Complaint::STATUS_PENDING);
-
-        $complaints = Complaint::query()
-            ->when($status, fn ($q) => $q->where('status', $status))
-            ->with('post.media')
-            ->latest()
-            ->paginate(20)
-            ->withQueryString();
+        $complaints = ($this->listComplaints)($status);
 
         return ComplaintResource::collection($complaints)->response();
     }
 
-    public function updateStatus(Request $request, Complaint $complaint): JsonResponse
+    public function updateStatus(ComplaintStatusUpdateRequest $request, Complaint $complaint): JsonResponse
     {
         $this->ensureAdmin($request);
 
-        $validated = $request->validate([
-            'status' => ['required', Rule::in([
-                Complaint::STATUS_PENDING,
-                Complaint::STATUS_REVIEWED,
-                Complaint::STATUS_REJECTED,
-            ])],
-        ]);
-
-        $complaint->update(['status' => $validated['status']]);
-
-        $complaint->load('post.media');
+        $complaint = ($this->updateComplaintStatus)($complaint, $request->string('status')->toString());
 
         return ComplaintResource::make($complaint)->response();
     }
