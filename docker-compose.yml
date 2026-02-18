@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: frendi_app
+    working_dir: /var/www/Frendi
+    volumes:
+      - ./:/var/www/Frendi
+    environment:
+      - PHP_MEMORY_LIMIT=512M
+      - PHP_UPLOAD_MAX_FILESIZE=20M
+      - PHP_POST_MAX_SIZE=24M
+    depends_on:
+      - db
+
+  web:
+    image: nginx:1.25-alpine
+    container_name: frendi_web
+    ports:
+      - "8010:80"
+    volumes:
+      - ./:/var/www/Frendi:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+
+  db:
+    image: postgres:15-alpine
+    container_name: frendi_db
+    environment:
+      - POSTGRES_DB=frendi
+      - POSTGRES_USER=frendi
+      - POSTGRES_PASSWORD=secret
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
+
+
